@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types tests/stats.test.ts"
+    "test": "node --experimental-strip-types tests/stats.test.ts && node --experimental-strip-types tests/crypto.test.ts"
   },
   "author": "",
   "license": "ISC",

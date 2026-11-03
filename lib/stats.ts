@@ -42,6 +42,17 @@ export function toProgress(raw: RawStats): Progress {
   };
 }
 
+/** The Todoist account ID behind a token, used to recognize the same person across sign-ins. */
+export async function fetchTodoistUserId(token: string): Promise<string> {
+  const res = await fetch("https://api.todoist.com/api/v1/user", {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Todoist responded ${res.status}`);
+  const user = await res.json();
+  return String(user.id ?? user.user_id);
+}
+
 export async function fetchProgress(token: string): Promise<Progress> {
   const res = await fetch("https://api.todoist.com/api/v1/tasks/completed/stats", {
     headers: { Authorization: `Bearer ${token}` },

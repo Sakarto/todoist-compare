@@ -8,14 +8,15 @@ Todoist Compare is a minimal board: each person's name sits above their complete
 
 - **Day and week views** that track each person's own daily and weekly goals
 - **Zero setup for goals:** they come straight from each person's Todoist productivity settings
-- **Private by design:** API tokens stay on the server, and the page only ever shows names and counts
+- **Read-only access:** friends join with "Connect with Todoist," which grants read-only access they can revoke anytime
+- **Encrypted at rest:** access tokens are stored encrypted (AES-256-GCM), and the page only ever shows names and counts
 - **Live updates:** the board refreshes every minute
-- **Join and leave anytime:** leaving requires your own token, so no one can remove anyone else
+- **Join and leave anytime:** leaving confirms your identity through Todoist, so no one can remove anyone else
 - **Optional join code** to keep the board limited to people you invite
 
 ## How it works
 
-Each person joins with their name and a Todoist API token (Todoist → Settings → Integrations → Developer). The token is checked against Todoist before it's saved.
+Each person enters their name and signs in with Todoist using OAuth with the `data:read` scope, so the app can read completion stats but can't change anything. The resulting token is encrypted before it's stored.
 
 For every member, the server calls Todoist's productivity stats endpoint (`GET /api/v1/tasks/completed/stats`), which returns their goals and recent daily and weekly completion counts. "Today" is the newest day in each person's own timezone. The week total uses Todoist's weekly bucket when available and otherwise adds up the days since Monday.
 

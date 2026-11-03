@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMembers } from "@/lib/store";
 import { fetchProgress } from "@/lib/stats";
+import { oauthConfigured } from "@/lib/oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,5 +17,5 @@ export async function GET() {
       }
     })
   );
-  return NextResponse.json({ people });
+  return NextResponse.json({ people, oauth: oauthConfigured(), joinCode: Boolean(process.env.JOIN_CODE) });
 }
