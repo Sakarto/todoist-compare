@@ -83,6 +83,9 @@ export default function Home() {
             <button className="link" onClick={() => { setPanel("join"); setMsg(""); }}>Join</button>
             <button className="link" onClick={() => { setPanel("leave"); setMsg(""); }}>Leave</button>
           </div>
+          <p className="privacy">
+            Your Todoist password is never seen or stored. The app only keeps an encrypted, read-only access key, which you can revoke anytime in Todoist → Settings → Integrations.
+          </p>
         </>
       ) : (
         <form onSubmit={submit}>
