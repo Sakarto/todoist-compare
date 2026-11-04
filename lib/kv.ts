@@ -69,6 +69,21 @@ async function local(cmds: Cmd[]): Promise<unknown[]> {
         return s.size;
       }
       case "SMEMBERS": return Array.isArray(db[k]?.v) ? db[k].v : [];
+      case "LPUSH": {
+        const l = Array.isArray(db[k]?.v) ? (db[k].v as string[]) : [];
+        l.unshift(...args.map(String).reverse());
+        db[k] = { v: l, exp: db[k]?.exp };
+        return l.length;
+      }
+      case "LTRIM": {
+        const l = Array.isArray(db[k]?.v) ? (db[k].v as string[]) : [];
+        db[k] = { v: l.slice(Number(args[0]), Number(args[1]) + 1), exp: db[k]?.exp };
+        return "OK";
+      }
+      case "LRANGE": {
+        const l = Array.isArray(db[k]?.v) ? (db[k].v as string[]) : [];
+        return l.slice(Number(args[0]), Number(args[1]) + 1);
+      }
       default: throw new Error(`Unsupported command ${op}`);
     }
   });
