@@ -12,7 +12,7 @@ export function verifySignature(rawBody: string, signature: string | null, secre
   });
 }
 
-export type Completion = { uid: string; delta: 1 | -1; when: Date } | null;
+export type Completion = { uid: string; delta: 1 | -1; when: Date; projectId?: string } | null;
 
 /** Turns a webhook payload into a +1/-1 for the person who did it, or null to ignore. */
 export function toCompletion(payload: any, now = new Date()): Completion {
@@ -25,5 +25,6 @@ export function toCompletion(payload: any, now = new Date()): Completion {
   if (initiator != null && String(initiator) !== uid) return null;
   const stamp = name === "item:completed" ? payload?.event_data?.completed_at ?? payload?.triggered_at : payload?.triggered_at;
   const when = stamp ? new Date(stamp) : now;
-  return { uid, delta: name === "item:completed" ? 1 : -1, when: isNaN(when.getTime()) ? now : when };
+  const projectId = payload?.event_data?.project_id != null ? String(payload.event_data.project_id) : undefined;
+  return { uid, delta: name === "item:completed" ? 1 : -1, when: isNaN(when.getTime()) ? now : when, projectId };
 }

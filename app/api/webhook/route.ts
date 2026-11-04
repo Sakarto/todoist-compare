@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const c = toCompletion(payload);
   if (c) {
     const profile = await getProfile(c.uid);
-    if (profile) await applyCompletion(profile, c.delta, c.when);
+    if (profile) await applyCompletion(profile, c.delta, c.when, c.projectId);
   }
   return NextResponse.json({ ok: true });
 }

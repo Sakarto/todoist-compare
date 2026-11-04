@@ -5,7 +5,9 @@ import { run } from "./kv.ts";
 import { localDate, weekStart } from "./dates.ts";
 import type { Seed, TodoistUser } from "./stats.ts";
 
-export type Profile = { uid: string; name: string; tz: string; startDay: number; dailyGoal: number; weeklyGoal: number };
+export type Profile = {
+  uid: string; name: string; tz: string; startDay: number; dailyGoal: number; weeklyGoal: number; excluded?: string[];
+};
 export type BoardPerson = { id: string; name: string; day: { done: number; goal: number }; week: { done: number; goal: number } };
 
 const MEMBERS = "tc:members";
@@ -16,9 +18,9 @@ const DAY_TTL = 3 * 86400;
 const WEEK_TTL = 10 * 86400;
 
 /** Adds or refreshes a person using numbers read once at sign-in. */
-export async function join(name: string, user: TodoistUser, seed: Seed) {
+export async function join(name: string, user: TodoistUser, seed: Seed, excluded: string[] = []) {
   const profile: Profile = {
-    uid: user.id, name, tz: user.tz, startDay: user.startDay, dailyGoal: seed.dailyGoal, weeklyGoal: seed.weeklyGoal,
+    uid: user.id, name, tz: user.tz, startDay: user.startDay, dailyGoal: seed.dailyGoal, weeklyGoal: seed.weeklyGoal, excluded,
   };
   await run([
     ["SADD", MEMBERS, user.id],
@@ -39,7 +41,8 @@ export async function getProfile(uid: string): Promise<Profile | null> {
 }
 
 /** Applies one completion (+1) or un-completion (-1) at `when`, in the person's own calendar. */
-export async function applyCompletion(p: Profile, delta: 1 | -1, when: Date) {
+export async function applyCompletion(p: Profile, delta: 1 | -1, when: Date, projectId?: string) {
+  if (projectId && p.excluded?.includes(projectId)) return; // a project this person chose not to count
   const day = localDate(p.tz, when);
   const week = weekStart(day, p.startDay);
   const [d, w] = (await run([

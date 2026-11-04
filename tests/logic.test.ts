@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { localDate, weekStart } from "../lib/dates.ts";
-import { toSeed } from "../lib/stats.ts";
+import { toSeed, expandExcluded } from "../lib/stats.ts";
 import { verifySignature, toCompletion } from "../lib/webhook.ts";
 
 // --- calendar math ---
@@ -46,7 +46,7 @@ assert.ok(!verifySignature(body, "short", ["client-secret"]), "garbage signature
 // --- interpreting events ---
 const done = toCompletion({ event_name: "item:completed", user_id: "52738717", initiator: { id: "52738717" },
   event_data: { completed_at: "2026-11-04T06:30:00Z" } });
-assert.deepEqual(done, { uid: "52738717", delta: 1, when: new Date("2026-11-04T06:30:00Z") });
+assert.deepEqual(done, { uid: "52738717", delta: 1, when: new Date("2026-11-04T06:30:00Z"), projectId: undefined });
 assert.equal(toCompletion({ event_name: "item:completed", user_id: "1", initiator: { id: "2" } }), null,
   "a collaborator's completion isn't counted for you");
 assert.equal(toCompletion({ event_name: "item:added", user_id: "1" }), null, "other events ignored");
@@ -64,3 +64,31 @@ assert.equal(readSession("99999." + cookie.split(".")[1], "k1"), null, "can't sw
 assert.equal(readSession("52738717", "k1"), null, "unsigned rejected");
 assert.equal(readSession(undefined, "k1"), null);
 console.log("session tests passed");
+
+// --- project filtering, using Avy's real per-project breakdown (Nov 2026) ---
+const INBOX = "6XG8xJ3QCwGWpXmj", SCHOOL = "6hJc6mQh3Mqx6gjP", ECS = "6hJc86qhxJGCrcqX";
+const byProject = {
+  days_items: [
+    { date: "2026-11-03", total_completed: 0, items: [] },
+    { date: "2026-11-02", total_completed: 8, items: [{ id: INBOX, completed: 1 }, { id: SCHOOL, completed: 1 }, { id: ECS, completed: 6 }] },
+    { date: "2026-11-01", total_completed: 9, items: [{ id: SCHOOL, completed: 9 }] },
+  ],
+  goals: { daily_goal: 5, weekly_goal: 25 },
+};
+const tue = new Date("2026-11-03T14:17:00Z");
+assert.equal(toSeed(byProject, la, tue).weekDone, 8, "no filter = Todoist total");
+assert.equal(toSeed(byProject, la, tue, new Set([INBOX])).weekDone, 7, "leaving out Inbox");
+assert.equal(toSeed(byProject, la, tue, new Set([SCHOOL, INBOX])).weekDone, 6, "only ECs");
+const monLA = new Date("2026-11-02T20:00:00Z");
+assert.equal(toSeed(byProject, la, monLA, new Set([ECS])).dayDone, 2, "today, without ECs");
+
+const projects = [
+  { id: "home", name: "Home", parentId: null }, { id: "chores", name: "Chores", parentId: "home" },
+  { id: "laundry", name: "Laundry", parentId: "chores" }, { id: "work", name: "Work", parentId: null },
+];
+assert.deepEqual(expandExcluded(["home"], projects).sort(), ["chores", "home", "laundry"], "sub-projects follow their parent");
+assert.deepEqual(expandExcluded(["chores"], projects).sort(), ["chores", "laundry"]);
+assert.deepEqual(expandExcluded([], projects), []);
+
+assert.equal(toCompletion({ event_name: "item:completed", user_id: "1", event_data: { project_id: 42 } })?.projectId, "42");
+console.log("project filter tests passed");

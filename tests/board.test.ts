@@ -36,6 +36,16 @@ assert.equal(me.day.done, 0);
 [me] = await board(new Date("2026-11-09T18:00:00Z"));
 assert.deepEqual([me.day.done, me.week.done], [0, 0]);
 
+// Completions in a project the person left out don't count.
+await join("Avy", avy, seed, ["chores"]);
+const p2 = (await getProfile(avy.id))!;
+const thu = new Date("2026-11-05T20:00:00Z");
+await applyCompletion(p2, 1, thu, "chores");
+await applyCompletion(p2, 1, thu, "work");
+await applyCompletion(p2, 1, thu); // no project info: counted
+[me] = await board(thu);
+assert.equal(me.day.done, 2, "chores completion ignored");
+
 // No tokens anywhere in storage.
 const stored = await fs.readFile(".data/kv.json", "utf8");
 assert.ok(!/token/i.test(stored), "storage holds no tokens");

@@ -25,3 +25,9 @@ form button { font: inherit; padding: 10px; border: 0; border-radius: 8px; backg
 .center { justify-content: center; }
 .title { font-size: 28px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
 .sub { color: var(--muted); margin: 0 0 8px; text-align: center; }
+.picker { width: 100%; max-width: 340px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px; max-height: 50vh; overflow-y: auto; }
+.pick { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.pick:last-child { border-bottom: 0; }
+.pick.off { color: var(--muted); cursor: default; }
+.pick input { width: 16px; height: 16px; margin: 0; padding: 0; }
+a.link { color: var(--muted); font-size: 14px; }

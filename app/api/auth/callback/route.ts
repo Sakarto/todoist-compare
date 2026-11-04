@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { STATE_COOKIE } from "@/lib/oauth";
-import { join } from "@/lib/board";
 import { readOnce } from "@/lib/stats";
-import { makeSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
+import { createPending, PENDING_COOKIE, pendingCookieOptions } from "@/lib/pending";
 
 // Todoist sends the person back here after they approve (or decline).
 export async function GET(req: NextRequest) {
@@ -44,10 +43,9 @@ export async function GET(req: NextRequest) {
 
   // The token is used right here, then discarded. It is never stored.
   try {
-    const { user, seed } = await readOnce(token);
-    await join(saved.name || "Friend", user, seed);
-    const res = finish("joined=1");
-    res.cookies.set(SESSION_COOKIE, makeSession(user.id), sessionCookieOptions);
+    const id = await createPending(saved.name || "Friend", await readOnce(token));
+    const res = finish("setup=1"); // next: pick which projects count
+    res.cookies.set(PENDING_COOKIE, id, pendingCookieOptions);
     return res;
   } catch {
     return fail("Connected, but couldn't read your Todoist stats.");

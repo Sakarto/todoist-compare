@@ -2,7 +2,7 @@
 // to move that person onto the new token-free board, then delete every stored token.
 import { run } from "./kv.ts";
 import { decrypt } from "./crypto.ts";
-import { readOnce } from "./stats.ts";
+import { readOnce, toSeed } from "./stats.ts";
 import { join } from "./board.ts";
 
 const LEGACY = "todoist-compare:members";
@@ -14,8 +14,8 @@ export async function migrateLegacy() {
   try { members = JSON.parse(String(v)); } catch {}
   for (const m of members) {
     try {
-      const { user, seed } = await readOnce(decrypt(m.token));
-      await join(m.name, user, seed);
+      const { user, raw } = await readOnce(decrypt(m.token));
+      await join(m.name, user, toSeed(raw, user));
     } catch {
       // Token can't be decrypted or was revoked: that person just signs in again.
     }
