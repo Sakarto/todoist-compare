@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Stat = { done: number; goal: number };
 type Person = { id: string; name: string; day: Stat; week: Stat };
@@ -28,8 +28,17 @@ export default function Home() {
   const [setup, setSetup] = useState<{ name: string; projects: Project[] } | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    const j = await (await fetch("/api/board", { cache: "no-store" })).json();
+  const version = useRef<string | null>(null);
+  const lastFull = useRef(0);
+
+  // quick = only fetch the full board if something changed since our last copy.
+  const load = useCallback(async (quick = false) => {
+    // Always do a full load every 5 minutes so "today" rolls over at midnight.
+    const since = quick && version.current && Date.now() - lastFull.current < 300_000 ? version.current : null;
+    const j = await (await fetch(`/api/board${since ? `?since=${since}` : ""}`, { cache: "no-store" })).json();
+    if (j.unchanged) return;
+    version.current = j.version ?? null;
+    lastFull.current = Date.now();
     setJoined(j.joined);
     setMe(j.me ?? "");
     setPeople(j.people);
@@ -45,8 +54,11 @@ export default function Home() {
     if (q.get("setup")) loadSetup();
     if (q.toString()) window.history.replaceState(null, "", "/");
     load();
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
+    // Check every 10 seconds while the page is on screen, and right away when you come back to it.
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(true); }, 10_000);
+    const onShow = () => { if (document.visibilityState === "visible") load(true); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
   }, [load]);
 
   async function loadSetup() {

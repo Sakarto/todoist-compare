@@ -49,6 +49,11 @@ async function local(cmds: Cmd[]): Promise<unknown[]> {
         db[k] = { v: String(args[0]), exp: exIdx >= 0 ? now + Number(args[exIdx + 1]) * 1000 : undefined };
         return "OK";
       }
+      case "INCR": {
+        const n = Number(db[k]?.v ?? 0) + 1;
+        db[k] = { v: String(n), exp: db[k]?.exp };
+        return n;
+      }
       case "INCRBY": {
         const n = Number(db[k]?.v ?? 0) + Number(args[0]);
         db[k] = { v: String(n), exp: db[k]?.exp };

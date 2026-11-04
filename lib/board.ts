@@ -11,6 +11,7 @@ export type Profile = {
 export type BoardPerson = { id: string; name: string; day: { done: number; goal: number }; week: { done: number; goal: number } };
 
 const MEMBERS = "tc:members";
+export const VERSION = "tc:ver"; // bumped on every change, so pages can cheaply check for updates
 const pKey = (uid: string) => `tc:p:${uid}`;
 const dKey = (uid: string, date: string) => `tc:d:${uid}:${date}`;
 const wKey = (uid: string, start: string) => `tc:w:${uid}:${start}`;
@@ -23,6 +24,7 @@ export async function join(name: string, user: TodoistUser, seed: Seed, excluded
     uid: user.id, name, tz: user.tz, startDay: user.startDay, dailyGoal: seed.dailyGoal, weeklyGoal: seed.weeklyGoal, excluded,
   };
   await run([
+    ["INCR", VERSION],
     ["SADD", MEMBERS, user.id],
     ["SET", pKey(user.id), JSON.stringify(profile)],
     ["SET", dKey(user.id, seed.today), seed.dayDone, "EX", DAY_TTL],
@@ -31,7 +33,7 @@ export async function join(name: string, user: TodoistUser, seed: Seed, excluded
 }
 
 export async function leave(uid: string): Promise<boolean> {
-  const [, had] = await run([["SREM", MEMBERS, uid], ["DEL", pKey(uid)]]);
+  const [, had] = await run([["SREM", MEMBERS, uid], ["DEL", pKey(uid)], ["INCR", VERSION]]);
   return Number(had) === 1;
 }
 
@@ -54,6 +56,7 @@ export async function applyCompletion(p: Profile, delta: 1 | -1, when: Date, pro
   const fix: (string | number)[][] = [];
   if (d < 0) fix.push(["SET", dKey(p.uid, day), 0, "EX", DAY_TTL]);
   if (w < 0) fix.push(["SET", wKey(p.uid, week), 0, "EX", WEEK_TTL]);
+  fix.push(["INCR", VERSION]);
   await run(fix);
 }
 
@@ -80,4 +83,9 @@ export async function board(now = new Date()): Promise<BoardPerson[]> {
 
 export async function isMember(uid: string): Promise<boolean> {
   return (await getProfile(uid)) !== null;
+}
+
+export async function boardVersion(): Promise<string> {
+  const [v] = await run([["GET", VERSION]]);
+  return String(v ?? "0");
 }
