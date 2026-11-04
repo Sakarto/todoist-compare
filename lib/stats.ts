@@ -1,63 +1,47 @@
-// Turns Todoist's productivity stats into the two numbers we show per person.
-// Validated against real API output: days_items arrives newest-first, so we sort by date.
+// Reads a person's goals and current counts from Todoist. Called only at sign-in;
+// the access token is used for these two requests and then discarded.
+import { localDate, weekStart } from "./dates.ts";
 
 export type DayItem = { date: string; total_completed: number };
-export type WeekItem = { from: string; to: string; total_completed: number };
 export type RawStats = {
   days_items?: DayItem[];
-  week_items?: WeekItem[];
   goals?: { daily_goal?: number; weekly_goal?: number };
 };
-
-export type Progress = {
-  day: { done: number; goal: number };
-  week: { done: number; goal: number };
-  today: string;
+export type TodoistUser = { id: string; tz: string; startDay: number };
+export type Seed = {
+  today: string; dayDone: number; weekStart: string; weekDone: number; dailyGoal: number; weeklyGoal: number;
 };
 
-function mondayOf(isoDate: string): string {
-  const d = new Date(isoDate + "T00:00:00Z");
-  const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
-  d.setUTCDate(d.getUTCDate() - dow);
-  return d.toISOString().slice(0, 10);
-}
-
-export function toProgress(raw: RawStats): Progress {
-  const days = [...(raw.days_items ?? [])].sort((a, b) => a.date.localeCompare(b.date));
-  // The newest day in the response is "today" in that user's own timezone.
-  const today = days.length ? days[days.length - 1].date : new Date().toISOString().slice(0, 10);
-  const dayDone = days.find((d) => d.date === today)?.total_completed ?? 0;
-
-  // Prefer Todoist's own weekly bucket; fall back to summing days since Monday.
-  const week = (raw.week_items ?? []).find((w) => w.from <= today && today <= w.to);
-  const monday = mondayOf(today);
-  const weekDone = week
-    ? week.total_completed
-    : days.filter((d) => d.date >= monday && d.date <= today).reduce((s, d) => s + d.total_completed, 0);
-
+/** Today's and this week's counts, computed in the person's own timezone and week start. */
+export function toSeed(raw: RawStats, user: Pick<TodoistUser, "tz" | "startDay">, now = new Date()): Seed {
+  const today = localDate(user.tz, now);
+  const ws = weekStart(today, user.startDay);
+  const days = raw.days_items ?? []; // last 7 days, which always covers the current week
   return {
     today,
-    day: { done: dayDone, goal: raw.goals?.daily_goal ?? 0 },
-    week: { done: weekDone, goal: raw.goals?.weekly_goal ?? 0 },
+    dayDone: days.find((d) => d.date === today)?.total_completed ?? 0,
+    weekStart: ws,
+    weekDone: days.filter((d) => d.date >= ws && d.date <= today).reduce((s, d) => s + d.total_completed, 0),
+    dailyGoal: raw.goals?.daily_goal ?? 0,
+    weeklyGoal: raw.goals?.weekly_goal ?? 0,
   };
 }
 
-/** The Todoist account ID behind a token, used to recognize the same person across sign-ins. */
-export async function fetchTodoistUserId(token: string): Promise<string> {
-  const res = await fetch("https://api.todoist.com/api/v1/user", {
+async function get(path: string, token: string) {
+  const res = await fetch(`https://api.todoist.com/api/v1/${path}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Todoist responded ${res.status}`);
-  const user = await res.json();
-  return String(user.id ?? user.user_id);
+  return res.json();
 }
 
-export async function fetchProgress(token: string): Promise<Progress> {
-  const res = await fetch("https://api.todoist.com/api/v1/tasks/completed/stats", {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`Todoist responded ${res.status}`);
-  return toProgress((await res.json()) as RawStats);
+export async function fetchUser(token: string): Promise<TodoistUser> {
+  const u = await get("user", token);
+  return { id: String(u.id), tz: u.tz_info?.timezone ?? "UTC", startDay: Number(u.start_day) || 1 };
+}
+
+export async function readOnce(token: string): Promise<{ user: TodoistUser; seed: Seed }> {
+  const [user, raw] = await Promise.all([fetchUser(token), get("tasks/completed/stats", token) as Promise<RawStats>]);
+  return { user, seed: toSeed(raw, user) };
 }

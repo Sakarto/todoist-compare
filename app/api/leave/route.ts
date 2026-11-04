@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-import { removeMember } from "@/lib/store";
+import { NextResponse, type NextRequest } from "next/server";
+import { leave } from "@/lib/board";
+import { readSession, SESSION_COOKIE } from "@/lib/session";
 
-// Removing yourself requires your own token, so nobody can remove someone else.
-// (With Todoist sign-in enabled, leaving goes through /api/auth/start?intent=leave instead.)
-export async function POST(req: Request) {
-  const { token } = await req.json().catch(() => ({}));
-  const t = String(token ?? "").trim();
-  if (!t || !(await removeMember({ token: t })))
-    return NextResponse.json({ error: "No one on the board uses that token." }, { status: 404 });
-  return NextResponse.json({ ok: true });
+// Leaving removes your name from the board and signs this browser out.
+export async function POST(req: NextRequest) {
+  const uid = readSession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (uid) await leave(uid);
+  const res = NextResponse.json({ ok: true });
+  res.cookies.delete(SESSION_COOKIE);
+  return res;
 }

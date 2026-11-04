@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { STATE_COOKIE } from "@/lib/oauth";
-import { removeMember, upsertMember } from "@/lib/store";
-import { fetchProgress, fetchTodoistUserId } from "@/lib/stats";
+import { join } from "@/lib/board";
+import { readOnce } from "@/lib/stats";
+import { makeSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 
 // Todoist sends the person back here after they approve (or decline).
 export async function GET(req: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   };
   const fail = (msg: string) => finish(`error=${encodeURIComponent(msg)}`);
 
-  let saved: { state?: string; intent?: string; name?: string } = {};
+  let saved: { state?: string; name?: string } = {};
   try {
     saved = JSON.parse(req.cookies.get(STATE_COOKIE)?.value ?? "{}");
   } catch {}
@@ -41,15 +42,13 @@ export async function GET(req: NextRequest) {
     return fail("Couldn't reach Todoist. Try again in a moment.");
   }
 
+  // The token is used right here, then discarded. It is never stored.
   try {
-    const todoistUserId = await fetchTodoistUserId(token);
-    if (saved.intent === "leave") {
-      const removed = await removeMember({ todoistUserId });
-      return removed ? finish("left=1") : fail("You weren't on the board.");
-    }
-    await fetchProgress(token); // make sure stats are readable before saving
-    await upsertMember({ name: saved.name || "Friend", token, todoistUserId });
-    return finish("joined=1");
+    const { user, seed } = await readOnce(token);
+    await join(saved.name || "Friend", user, seed);
+    const res = finish("joined=1");
+    res.cookies.set(SESSION_COOKIE, makeSession(user.id), sessionCookieOptions);
+    return res;
   } catch {
     return fail("Connected, but couldn't read your Todoist stats.");
   }
